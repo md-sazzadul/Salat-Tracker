@@ -55,3 +55,25 @@ create policy "Remove own prayer completions"
 grant select, insert on public.profiles to authenticated;
 grant select, insert, delete on public.prayer_completions to authenticated;
 
+-- Let a signed-in user clear their own profile and prayer history as one transaction.
+create or replace function public.reset_my_prayer_data()
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  current_user_id uuid := auth.uid();
+begin
+  if current_user_id is null then
+    raise exception 'Authentication is required to reset prayer data.';
+  end if;
+
+  delete from public.prayer_completions where user_id = current_user_id;
+  delete from public.profiles where id = current_user_id;
+end;
+$$;
+
+revoke all on function public.reset_my_prayer_data() from public;
+grant execute on function public.reset_my_prayer_data() to authenticated;
+
