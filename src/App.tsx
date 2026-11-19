@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { FormEvent } from 'react'
 import type { Session } from '@supabase/supabase-js'
 import {
-  ArrowLeft, ArrowRight, CalendarDays, Check, ChevronRight, CircleHelp, Cloud, Flower2,
+  ArrowLeft, ArrowRight, CalendarDays, Check, ChevronLeft, ChevronRight, CircleHelp, Cloud, Flower2,
   LockKeyhole, LogOut, Mail, ShieldCheck, Sparkles, UserRound,
 } from 'lucide-react'
 import { supabase, isSupabaseConfigured } from './lib/supabase'
@@ -166,6 +166,8 @@ function App() {
     />
   )
 }
+
+export default App
 
 function Mark({ light = false }: { light?: boolean }) {
   return <span className={`brand-mark${light ? ' brand-mark-light' : ''}`} aria-hidden="true"><span /></span>
