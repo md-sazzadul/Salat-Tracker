@@ -1,9 +1,9 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
 import type { Session } from '@supabase/supabase-js'
 import {
   ArrowLeft, ArrowRight, CalendarDays, Check, ChevronLeft, ChevronRight, CircleHelp, Cloud, Flower2,
-  LockKeyhole, LogOut, Mail, ShieldCheck, Sparkles, UserRound,
+  LockKeyhole, LogOut, Mail, ShieldCheck, Sparkles, Trash2, UserRound,
 } from 'lucide-react'
 import { supabase, isSupabaseConfigured } from './lib/supabase'
 import { dateFromKey, daysBetween, formatLongDate, formatMonth, isFuture, toDateKey } from './lib/date'
@@ -142,6 +142,25 @@ function App() {
     await supabase.auth.signOut()
   }
 
+  const resetPrayerData = async () => {
+    if (!supabase || !session?.user.id) return false
+    setNotice(null)
+    try {
+      const { error } = await supabase.rpc('reset_my_prayer_data')
+      if (error) throw error
+    } catch {
+      setNotice({ kind: 'error', text: 'We could not clear your data. Check your connection and make sure the latest database setup has been applied.' })
+      return false
+    }
+    setProfile(null)
+    setCompletions([])
+    setSelectedDate(todayKey())
+    const now = new Date()
+    setVisibleMonth(new Date(now.getFullYear(), now.getMonth(), 1))
+    setNotice({ kind: 'success', text: 'Your prayer history and birth date were cleared. Enter a new birth date to start fresh.' })
+    return true
+  }
+
   if (loading || profileLoading) return <LoadingScreen />
   if (!isSupabaseConfigured || !supabase) return <SetupScreen />
   if (!session) return <AuthScreen notice={notice} setNotice={setNotice} />
@@ -161,6 +180,7 @@ function App() {
       busyPrayer={busyPrayer}
       togglePrayer={togglePrayer}
       signOut={signOut}
+      resetPrayerData={resetPrayerData}
       notice={notice}
       onDismissNotice={() => setNotice(null)}
     />
@@ -307,7 +327,7 @@ function BirthDateScreen({ onSave, notice, loading }: { onSave: (date: string) =
     <main className="birth-page">
       <div className="birth-card">
         <div className="birth-topline"><div className="brand-lockup"><Mark /><span>SALAH</span></div><span className="step-pill">ONE LAST STEP <span>•</span> 01 / 01</span></div>
-        <div className="birth-content"><div className="birth-icon"><Flower2 size={22} /></div><p className="eyebrow">YOUR STORY, YOUR PACE</p><h1>When did your journey begin?</h1><p className="birth-lede">Your date of birth helps us shape your personal prayer timeline. This stays private to your account and can’t be changed later.</p>
+        <div className="birth-content"><div className="birth-icon"><Flower2 size={22} /></div><p className="eyebrow">YOUR STORY, YOUR PACE</p><h1>When did your journey begin?</h1><p className="birth-lede">Your date of birth helps us shape your personal prayer timeline and stays private to your account. You can clear your prayer data from the account menu if you want to start over.</p>
           {notice && <NoticeBanner notice={notice} onClose={() => undefined} />}
           <form onSubmit={submit} className="birth-form"><label htmlFor="birth-date" className="field-label">Date of birth</label><div className="input-wrap"><CalendarDays size={18} /><input id="birth-date" type="date" max={maxDate} value={date} onChange={(event) => setDate(event.target.value)} required /></div><p className="form-hint">Saved once and used only to calculate your prayer count.</p><button className="primary-button" disabled={loading || !date}>{loading ? 'Saving…' : 'Continue to my journal'}<ArrowRight size={17} /></button></form>
           <p className="privacy-note"><ShieldCheck size={16} /> Your date is private to your account.</p>
@@ -330,12 +350,13 @@ type DashboardProps = {
   busyPrayer: PrayerId | null
   togglePrayer: (date: string, prayer: PrayerId) => Promise<void>
   signOut: () => Promise<void>
+  resetPrayerData: () => Promise<boolean>
   notice: Notice
   onDismissNotice: () => void
 }
 
 function Dashboard(props: DashboardProps) {
-  const { email, profile, completions, dataLoading, selectedDate, setSelectedDate, visibleMonth, setVisibleMonth, busyPrayer, togglePrayer, signOut, notice, onDismissNotice } = props
+  const { email, profile, completions, dataLoading, selectedDate, setSelectedDate, visibleMonth, setVisibleMonth, busyPrayer, togglePrayer, signOut, resetPrayerData, notice, onDismissNotice } = props
   const today = todayKey()
   const daysSinceBirth = daysBetween(profile.date_of_birth, today) + 1
   const requiredTotal = daysSinceBirth * PRAYERS.length
@@ -345,12 +366,21 @@ function Dashboard(props: DashboardProps) {
   const selectedCount = selectedDone.size
   const selectedFuture = isFuture(selectedDate, today)
   const [accountOpen, setAccountOpen] = useState(false)
+  const [resetOpen, setResetOpen] = useState(false)
+  const [resetLoading, setResetLoading] = useState(false)
+
+  const confirmReset = async () => {
+    setResetLoading(true)
+    await resetPrayerData()
+    setResetLoading(false)
+    setResetOpen(false)
+  }
 
   return (
     <div className="dashboard-shell">
       <header className="app-header">
         <div className="header-brand"><Mark /><span>SALAH</span><span className="brand-separator" /><span className="header-caption">YOUR PRAYER JOURNAL</span></div>
-        <div className="header-actions"><span className="sync-status"><span className="sync-dot" /> <span>Synced</span></span><div className="account-menu-wrap"><button className="account-button" aria-label="Account menu" aria-expanded={accountOpen} onClick={() => setAccountOpen(!accountOpen)}><span className="avatar"><UserRound size={17} /></span><span className="account-name">{email}</span><ChevronRight size={15} className={accountOpen ? 'rotate-down' : 'rotate-side'} /></button>{accountOpen && <div className="account-menu"><span className="account-email">{email}</span><span className="account-menu-label">Account created for your personal use</span><button onClick={() => void signOut()}><LogOut size={15} /> Sign out</button></div>}</div></div>
+        <div className="header-actions"><span className="sync-status"><span className="sync-dot" /> <span>Synced</span></span><div className="account-menu-wrap"><button className="account-button" aria-label="Account menu" aria-expanded={accountOpen} onClick={() => setAccountOpen(!accountOpen)}><span className="avatar"><UserRound size={17} /></span><span className="account-name">{email}</span><ChevronRight size={15} className={accountOpen ? 'rotate-down' : 'rotate-side'} /></button>{accountOpen && <div className="account-menu"><span className="account-email">{email}</span><span className="account-menu-label">Account created for your personal use</span><button className="account-menu-danger" onClick={() => { setAccountOpen(false); setResetOpen(true) }}><Trash2 size={15} /> Clear my prayer data</button><button onClick={() => void signOut()}><LogOut size={15} /> Sign out</button></div>}</div></div>
       </header>
 
       <main className="dashboard-main">
@@ -390,6 +420,7 @@ function Dashboard(props: DashboardProps) {
         <footer className="dashboard-footer"><div className="footer-brand"><Mark /><span>May each day bring you closer to what matters.</span></div><span className="footer-privacy"><ShieldCheck size={14} /> Your journal stays private</span></footer>
       </main>
       <MobileNav selectedDate={selectedDate} setSelectedDate={setSelectedDate} today={today} />
+      {resetOpen && <ResetDialog loading={resetLoading} onCancel={() => setResetOpen(false)} onConfirm={() => void confirmReset()} />}
     </div>
   )
 }
@@ -413,8 +444,23 @@ function CalendarView({ profileDate, completions, today, visibleMonth, setVisibl
     else setSelectedDate(toDateKey(new Date(next.getFullYear(), next.getMonth(), 1)))
   }
 
+  const monthValue = `${visibleMonth.getFullYear()}-${String(visibleMonth.getMonth() + 1).padStart(2, '0')}`
+  const minimumMonth = `${earliestMonth.getFullYear()}-${String(earliestMonth.getMonth() + 1).padStart(2, '0')}`
+  const maximumMonth = `${latestMonth.getFullYear()}-${String(latestMonth.getMonth() + 1).padStart(2, '0')}`
+  const jumpToMonth = (value: string) => {
+    if (!value) return
+    const [year, month] = value.split('-').map(Number)
+    const nextMonth = new Date(year, month - 1, 1)
+    const selectedDay = Math.min(dateFromKey(selectedDate).getDate(), new Date(year, month, 0).getDate())
+    let nextDate = toDateKey(new Date(year, month - 1, selectedDay))
+    if (nextDate < profileDate) nextDate = profileDate
+    if (nextDate > today) nextDate = today
+    setVisibleMonth(nextMonth)
+    setSelectedDate(nextDate)
+  }
+
   return <>
-    <div className="month-switcher"><div className="month-label"><span className="month-flower">✳</span><strong>{formatMonth(visibleMonth)}</strong></div><div className="month-controls"><button onClick={() => changeMonth(-1)} disabled={!canPrevious} aria-label="Previous month"><ChevronLeft size={18} /></button><button onClick={() => changeMonth(1)} disabled={!canNext} aria-label="Next month"><ChevronRight size={18} /></button></div></div>
+    <div className="month-switcher"><div className="month-label"><span className="month-flower">✳</span><strong>{formatMonth(visibleMonth)}</strong></div><div className="month-tools"><label className="month-jump"><span>Go to</span><input type="month" aria-label="Jump to month" min={minimumMonth} max={maximumMonth} value={monthValue} onChange={(event) => jumpToMonth(event.target.value)} /></label><div className="month-controls"><button onClick={() => changeMonth(-1)} disabled={!canPrevious} aria-label="Previous month"><ChevronLeft size={18} /></button><button onClick={() => changeMonth(1)} disabled={!canNext} aria-label="Next month"><ChevronRight size={18} /></button></div></div></div>
     <div className="calendar-grid" role="grid" aria-label={formatMonth(visibleMonth)}>
       {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((day, index) => <div className="weekday" role="columnheader" key={`${day}-${index}`} aria-label={['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][index]}>{day}</div>)}
       {days.map((day, index) => {
@@ -432,6 +478,23 @@ function CalendarView({ profileDate, completions, today, visibleMonth, setVisibl
       })}
     </div>
   </>
+}
+
+function ResetDialog({ loading, onCancel, onConfirm }: { loading: boolean; onCancel: () => void; onConfirm: () => void }) {
+  const dialogRef = useRef<HTMLDialogElement>(null)
+  useEffect(() => {
+    const dialog = dialogRef.current
+    if (dialog && !dialog.open) dialog.showModal()
+    return () => { if (dialog?.open) dialog.close() }
+  }, [dialogRef])
+
+  return <dialog ref={dialogRef} className="confirm-dialog" aria-labelledby="reset-dialog-title" aria-describedby="reset-dialog-copy" onCancel={(event) => { event.preventDefault(); if (!loading) onCancel() }}>
+    <div className="confirm-dialog-icon"><Trash2 size={20} /></div>
+    <p className="eyebrow">A FRESH START</p>
+    <h2 id="reset-dialog-title">Clear your prayer data?</h2>
+    <p id="reset-dialog-copy">This permanently removes your saved birth date and all prayer check-ins. Your sign-in account stays active, and you can enter a new birth date right after.</p>
+    <div className="confirm-dialog-actions"><button className="secondary-button" disabled={loading} onClick={onCancel}>Keep my data</button><button className="danger-button" disabled={loading} onClick={onConfirm}>{loading ? 'Clearing…' : 'Clear and start fresh'}</button></div>
+  </dialog>
 }
 
 function MobileNav({ selectedDate, setSelectedDate, today }: { selectedDate: string; setSelectedDate: (date: string) => void; today: string }) {
