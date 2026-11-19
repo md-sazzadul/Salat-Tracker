@@ -1,6 +1,6 @@
 # Salah
 
-A calm, mobile-friendly prayer journal built with React and TypeScript. It supports email/password and Google sign-in, stores each user's date of birth once, calculates a running prayer count, and saves daily check-ins to a private Supabase database.
+A calm, mobile-friendly prayer journal built with React and TypeScript. It supports email/password and Google sign-in, stores each user's date of birth, calculates a running prayer count, and saves daily check-ins to a private Supabase database. Users can jump directly to any month in their timeline or clear their prayer data to start fresh.
 
 The tracker treats the five daily salah (Fajr, Dhuhr, Asr, Maghrib, and Isha) as five prayer entries per day. The total is calculated from the saved date of birth through today, inclusive, less the entries marked complete. It tracks daily prayers rather than individual rakaʿah units.
 
@@ -12,6 +12,7 @@ The app can run at no charge with a Supabase Free project for accounts and data,
 
 1. Create a free project at [supabase.com](https://supabase.com).
 2. Open **SQL Editor**, paste in [`supabase/schema.sql`](supabase/schema.sql), and run it.
+   If you already set up the database before this update, run [`supabase/reset-account.sql`](supabase/reset-account.sql) once to enable the new clear-data action.
 3. In **Project Settings → API**, copy the project URL and publishable key (or legacy anon key). The app uses only this browser-safe key; row-level security policies protect the records. Never put a `service_role` key in this app.
 4. In **Authentication → URL Configuration**, set the Site URL to your deployed app URL and add `http://localhost:5173` to the redirect URL allow list for local development.
 5. In **Authentication → Sign In / Providers**, enable email sign-in. Supabase email confirmation can stay enabled; new users will confirm their email before returning to complete their profile.
@@ -63,7 +64,7 @@ Cloudflare Pages serves the responsive website over HTTPS. On a phone, open the 
 
 ## Privacy and data rules
 
-- A user's date of birth is saved once in `profiles`. The schema intentionally has no profile update policy, so the app cannot change it after the first save.
+- A user's date of birth is saved once in `profiles`. The app cannot edit it, but the signed-in user can clear their birth date and prayer history together from the account menu to start over.
 - Prayer completion rows are scoped to the authenticated account using Supabase row-level security.
 - The app sends only prayer dates, prayer names, and account identifiers to Supabase. It does not collect prayer times or location.
 - Account deletion is handled from the Supabase Auth dashboard; deleting an auth user cascades to their profile and prayer records.
